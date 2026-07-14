@@ -1,0 +1,23 @@
+[project]
+name = "notification-officer"
+version = "0.1.0"
+description = "Notification platform for your social media subscribes"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.18.5",
+    "asyncpg>=0.31.0",
+    "fastapi>=0.139.0",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.14.2",
+    "python-dotenv>=1.2.2",
+    "redis>=8.0.1",
+    "sqlalchemy>=2.0.51",
+    "uvicorn>=0.51.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.0",
+    "pytest>=9.1.1",
+    "ruff>=0.15.21",
+]
