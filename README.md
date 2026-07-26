@@ -9,3 +9,17 @@ Universal notification platform.
 - PostgreSQL
 - Redis
 
+## Development
+
+Install git hooks:
+
+```bash
+uv run pre-commit install
+```
+
+Run all checks:
+
+```bash
+uv run pre-commit run --all-files
+```
+
