@@ -5,7 +5,7 @@ from datetime import datetime
 @dataclass(slots=True)
 class Streamer:
     id: int | None
-    twitch_id: str
+    twitch_id: str | None
     login: str
     display_name: str
     created_at: datetime | None = None

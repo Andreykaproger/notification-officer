@@ -1,6 +1,10 @@
 class StreamerAlreadyExistsError(Exception):
     """Raised when attempting to create a streamer with an existing login."""
 
+    def __init__(self, login: str) -> None:
+        self.login = login
+        super().__init__(f"Streamer with this {login} already exists")
+
     pass
 
 

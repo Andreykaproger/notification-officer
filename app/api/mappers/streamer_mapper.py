@@ -7,7 +7,7 @@ class StreamerApiMapper:
     def to_domain(request: CreateStreamerRequest) -> Streamer:
         return Streamer(
             id=None,
-            twitch_id=request.twitch_id,  # type: ignore[attr-defined]
+            twitch_id=None,  # type: ignore[attr-defined]
             login=request.login,
             display_name=request.display_name,
             created_at=None,
