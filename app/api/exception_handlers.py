@@ -5,7 +5,11 @@ from app.application.exceptions.streamer import (
     StreamerAlreadyExistsError,
     StreamerNotFoundError,
 )
-from app.integrations.twitch.exceptions import TwitchApiError, TwitchUserNotFoundError
+from app.integrations.twitch.exceptions import (
+    InvalidTwitchSignatureError,
+    TwitchApiError,
+    TwitchUserNotFoundError,
+)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
@@ -29,3 +33,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(TwitchApiError)
     async def twitch_api_error_handler(request: Request, exc: TwitchApiError):
         return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+    @app.exception_handler(InvalidTwitchSignatureError)
+    async def invalid_twitch_signature_handler(
+        request: Request, exc: InvalidTwitchSignatureError
+    ):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": str(exc)},
+        )

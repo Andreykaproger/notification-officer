@@ -31,13 +31,13 @@ class TwitchAuthClient:
         )
 
     async def get_app_access_token(self) -> OAuthToken:
-        assert self._token is not None
-
         if self._has_valid_token():
+            assert self._token is not None
             return self._token
 
         async with self._lock:
             if self._has_valid_token():
+                assert self._token is not None
                 return self._token
 
             try:

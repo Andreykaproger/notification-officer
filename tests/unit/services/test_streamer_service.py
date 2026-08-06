@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from app.application.exceptions.streamer import (
@@ -5,7 +7,12 @@ from app.application.exceptions.streamer import (
     StreamerNotFoundError,
 )
 from app.domain.entities.streamer import Streamer
-from app.integrations.twitch.exceptions import TwitchUserNotFoundError
+from app.integrations.twitch.dto import EventSubscription
+from app.integrations.twitch.enums import EventSubStatus, EventSubType
+from app.integrations.twitch.exceptions import (
+    EventSubClientError,
+    TwitchUserNotFoundError,
+)
 
 
 async def test_create_success(
@@ -13,21 +20,30 @@ async def test_create_success(
     repository,
     uow,
     helix_client,
+    eventsub_client,
     streamer,
     created_streamer,
     helix_user,
 ) -> None:
 
-    repository.get_by_login.return_value = None
+    event_subscription = EventSubscription(
+        id="id",
+        status=EventSubStatus.ENABLED,
+        type=EventSubType.STREAM_ONLINE,
+        created_at=datetime(2026, 7, 12),
+    )
 
+    repository.get_by_login.return_value = None
     helix_client.get_user_by_login.return_value = helix_user
     repository.create.return_value = created_streamer
+    eventsub_client.create_subscription.return_value = event_subscription
 
     # Act
     result = await service.create(streamer)
 
     # Assert
     repository.get_by_login.assert_awaited_once_with(streamer.login)
+    eventsub_client.create_subscription.assert_awaited_once()
     helix_client.get_user_by_login.assert_awaited_once_with(streamer.login)
     repository.create.assert_awaited_once_with(streamer)
 
@@ -43,6 +59,7 @@ async def test_create_streamer_already_exists(
     repository,
     uow,
     helix_client,
+    eventsub_client,
     created_streamer,
 ) -> None:
 
@@ -53,6 +70,7 @@ async def test_create_streamer_already_exists(
         await service.create(created_streamer)
 
     repository.get_by_login.assert_awaited_once_with(created_streamer.login)
+    eventsub_client.create_subscription.assert_not_awaited()
     helix_client.get_user_by_login.assert_not_awaited()
     repository.create.assert_not_awaited()
 
@@ -61,7 +79,7 @@ async def test_create_streamer_already_exists(
 
 
 async def test_create_streamer_helix_client_not_found(
-    service, repository, uow, helix_client, streamer
+    service, repository, uow, helix_client, eventsub_client, streamer
 ) -> None:
 
     repository.get_by_login.return_value = None
@@ -74,9 +92,43 @@ async def test_create_streamer_helix_client_not_found(
     repository.get_by_login.assert_awaited_once_with(streamer.login)
     helix_client.get_user_by_login.assert_awaited_once_with(streamer.login)
     repository.create.assert_not_awaited()
+    eventsub_client.create_subscription.assert_not_awaited()
 
     uow.commit.assert_not_awaited()
     uow.rollback.assert_not_awaited()
+
+
+async def test_create_streamer_eventsub_subscription_failed(
+    service,
+    repository,
+    uow,
+    helix_client,
+    eventsub_client,
+    streamer,
+    helix_user,
+    created_streamer,
+):
+
+    repository.get_by_login.return_value = None
+    helix_client.get_user_by_login.return_value = helix_user
+    repository.create.return_value = created_streamer
+    eventsub_client.create_subscription.side_effect = EventSubClientError(
+        "Helix Client error"
+    )
+
+    with pytest.raises(EventSubClientError):
+        await service.create(streamer)
+
+    repository.get_by_login.assert_awaited_once_with(streamer.login)
+    helix_client.get_user_by_login.assert_awaited_once_with(streamer.login)
+    eventsub_client.create_subscription.assert_awaited_once()
+    args, kwargs = eventsub_client.create_subscription.await_args
+
+    uow.commit.assert_not_awaited()
+    uow.rollback.assert_awaited_once()
+
+    assert kwargs["event_type"] == EventSubType.STREAM_ONLINE
+    assert kwargs["condition"].broadcaster_user_id == helix_user.id
 
 
 async def test_create_rollback_on_repository_error(
@@ -84,6 +136,7 @@ async def test_create_rollback_on_repository_error(
     repository,
     uow,
     helix_client,
+    eventsub_client,
     streamer,
     helix_user,
 ) -> None:
@@ -102,6 +155,7 @@ async def test_create_rollback_on_repository_error(
     repository.get_by_login.assert_awaited_once_with(streamer.login)
     helix_client.get_user_by_login.assert_awaited_once_with(streamer.login)
     repository.create.assert_awaited_once_with(streamer)
+    eventsub_client.create_subscription.assert_not_awaited()
 
     uow.commit.assert_not_awaited()
     uow.rollback.assert_awaited_once()
@@ -142,8 +196,42 @@ async def test_get_by_id_not_found(
     # Assert
     repository.get_by_id.assert_awaited_once_with(streamer_id)
 
-    assert exc_info.value.streamer_id == streamer_id
-    assert str(exc_info.value) == f"Streamer {streamer_id} not found"
+    assert exc_info.value.message == f"Streamer with {streamer_id} not found"
+
+
+async def test_get_by_login_success(service, repository, uow, created_streamer):
+    # Arrange
+    repository.get_by_login.return_value = created_streamer
+
+    # Act
+    result = await service.get_by_login(created_streamer.login)
+
+    # Assert
+    repository.get_by_login.assert_awaited_once_with(created_streamer.login)
+    uow.commit.assert_not_awaited()
+    uow.rollback.assert_not_awaited()
+
+    assert result == created_streamer
+
+
+async def test_get_by_login_not_found(service, repository, uow, created_streamer):
+
+    # Arrange
+
+    repository.get_by_login.return_value = None
+
+    # Act/Assert
+    with pytest.raises(StreamerNotFoundError) as exc_info:
+        await service.get_by_login(created_streamer.login)
+
+    repository.get_by_login.assert_awaited_once_with(created_streamer.login)
+    uow.commit.assert_not_awaited()
+    uow.rollback.assert_not_awaited()
+
+    assert (
+        exc_info.value.message
+        == f"Streamer with login {created_streamer.login} not found"
+    )
 
 
 async def test_get_all_success(
@@ -153,6 +241,7 @@ async def test_get_all_success(
     created_streamer,
 ) -> None:
 
+    # Arrange
     streamers = [
         created_streamer,
     ]

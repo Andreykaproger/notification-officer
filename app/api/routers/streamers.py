@@ -32,10 +32,23 @@ async def create_streamer(
     status_code=200,
     response_model=StreamerResponse,
 )
-async def get_streamer(
+async def get_streamer_by_id(
     streamer_id: int, service: StreamerService = Depends(get_streamer_service)
 ) -> StreamerResponse:
     streamer = await service.get_by_id(streamer_id)
+
+    return StreamerApiMapper.to_response(streamer)
+
+
+@streamers_router.get(
+    "/login/{streamer_login}",
+    status_code=200,
+    response_model=StreamerResponse,
+)
+async def get_streamer_by_login(
+    streamer_login: str, service: StreamerService = Depends(get_streamer_service)
+) -> StreamerResponse:
+    streamer = await service.get_by_login(streamer_login)
 
     return StreamerApiMapper.to_response(streamer)
 

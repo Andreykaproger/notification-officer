@@ -11,6 +11,6 @@ class StreamerAlreadyExistsError(Exception):
 class StreamerNotFoundError(Exception):
     """Raised when a streamer cannot be found."""
 
-    def __init__(self, streamer_id: int) -> None:
-        self.streamer_id = streamer_id
-        super().__init__(f"Streamer {streamer_id} not found")
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)

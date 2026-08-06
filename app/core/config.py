@@ -85,6 +85,11 @@ class Settings(BaseSettings):
         description="Secret used to verify EventSub webhooks",
     )
 
+    twitch_callback_url: str = Field(
+        ...,
+        description="Callback URL for webhook",
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:
