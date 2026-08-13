@@ -31,8 +31,6 @@ target_metadata = Base.metadata
 
 settings = get_settings()
 
-print(settings.database_url)
-
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
