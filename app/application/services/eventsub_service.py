@@ -19,7 +19,7 @@ class EventSubWebhookService:
     async def handle(
         self,
         request: EventSubWebhookRequest,
-    ):  # -> str | None
+    ) -> str | None:
         self._verifier.verify(
             request.message_id,
             request.timestamp,
@@ -31,11 +31,12 @@ class EventSubWebhookService:
 
         match request.message_type:
             case EventSubMessageType.REVOCATION:
-                return await self._handle_revocation()
+                await self._handle_revocation()
+                return None
 
             case EventSubMessageType.NOTIFICATION:
                 event = payload["event"]
-                return await self._handle_notification(
+                await self._handle_notification(
                     StreamOnlineNotification(
                         broadcaster_user_id=event["broadcaster_user_id"],
                         broadcaster_user_login=event["broadcaster_user_login"],
@@ -45,21 +46,26 @@ class EventSubWebhookService:
                         ),
                     )
                 )
+                return None
 
             case EventSubMessageType.WEBHOOK_CALLBACK_VERIFICATION:
                 return await self._handle_callback_verification(payload["challenge"])
 
     async def _handle_revocation(
         self,
-    ):
-        return None
+    ) -> None:
+        logger.info("Twitch EventSub subscription revoked")
 
     async def _handle_notification(
         self,
         event: StreamOnlineNotification,
-    ) -> StreamOnlineNotification:
-        logger.info(event)
-        return event
+    ) -> None:
+        logger.info(
+            "Twitch stream online: broadcaster=%s login=%s",
+            event.broadcaster_user_id,
+            event.broadcaster_user_login,
+        )
 
     async def _handle_callback_verification(self, challenge: str) -> str:
+        logger.info("Twitch EventSub callback verification received")
         return challenge
