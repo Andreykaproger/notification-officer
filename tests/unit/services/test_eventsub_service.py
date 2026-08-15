@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
+from app.integrations.twitch.dto import StreamOnlineNotification
 from app.integrations.twitch.exceptions import InvalidTwitchSignatureError
 
 
@@ -51,6 +53,7 @@ async def test_handle_notification(
 ):
     verifier.verify.return_value = None
 
+    eventsub_service._handle_notification = AsyncMock()
     result = await eventsub_service.handle(webhook_request_notification)
 
     verifier.verify.assert_called_once_with(
@@ -60,16 +63,37 @@ async def test_handle_notification(
         webhook_request_notification.signature,
     )
 
-    assert result.broadcaster_user_login == "test"
-    assert result.broadcaster_user_name == "test"
-    assert result.broadcaster_user_id == "1"
-    assert result.started_at == datetime(2026, 7, 22, 12, 0, 0, tzinfo=timezone.utc)
+    eventsub_service._handle_notification.assert_awaited_once()
+    assert result is None
+
+
+async def test_handle_notification_get_streamer_online_dto(
+    eventsub_service,
+    verifier,
+    webhook_request_notification,
+):
+    verifier.verify.return_value = None
+    eventsub_service._handle_notification = AsyncMock()
+
+    await eventsub_service.handle(webhook_request_notification)
+
+    eventsub_service._handle_notification.assert_awaited_once()
+
+    event = eventsub_service._handle_notification.await_args.args[0]
+
+    assert isinstance(event, StreamOnlineNotification)
+    assert event.broadcaster_user_id == "1"
+    assert event.broadcaster_user_login == "test"
+    assert event.broadcaster_user_name == "test"
+    assert event.started_at == datetime(2026, 7, 22, 12, 0, 0, tzinfo=timezone.utc)
 
 
 async def test_handle_revocation(
     eventsub_service, webhook_request_revocation, verifier
 ):
     verifier.verify.return_value = None
+
+    eventsub_service._handle_revocation = AsyncMock()
 
     result = await eventsub_service.handle(webhook_request_revocation)
 
@@ -79,5 +103,7 @@ async def test_handle_revocation(
         webhook_request_revocation.request_body,
         webhook_request_revocation.signature,
     )
+
+    eventsub_service._handle_revocation.assert_awaited_once()
 
     assert result is None
