@@ -1,14 +1,17 @@
-from datetime import datetime, timezone
+import json
 from unittest.mock import AsyncMock
 
 import pytest
 
-from app.integrations.twitch.dto import StreamOnlineNotification
+from app.infrastructure.redis.exceptions import RedisConnectorError
+from app.integrations.dto import NotificationMessage
 from app.integrations.twitch.exceptions import InvalidTwitchSignatureError
 
 
 async def test_handle_invalid_signature(
-    eventsub_service, verifier, webhook_request_verification
+    eventsub_service,
+    verifier,
+    webhook_request_verification,
 ):
 
     verifier.verify.side_effect = InvalidTwitchSignatureError()
@@ -48,12 +51,12 @@ async def test_handle_verification(
 
 async def test_handle_notification(
     eventsub_service,
+    notification_publisher,
     verifier,
     webhook_request_notification,
 ):
     verifier.verify.return_value = None
 
-    eventsub_service._handle_notification = AsyncMock()
     result = await eventsub_service.handle(webhook_request_notification)
 
     verifier.verify.assert_called_once_with(
@@ -63,29 +66,47 @@ async def test_handle_notification(
         webhook_request_notification.signature,
     )
 
-    eventsub_service._handle_notification.assert_awaited_once()
+    payload = json.loads(webhook_request_notification.request_body)
+
+    expected = NotificationMessage(
+        platform="twitch",
+        event_type=payload["subscription"]["type"],
+        payload=payload["event"],
+    )
+
+    notification_publisher.publish.assert_awaited_once_with(expected)
+
     assert result is None
 
 
-async def test_handle_notification_get_streamer_online_dto(
+async def test_handle_notification_redis_error(
     eventsub_service,
+    notification_publisher,
     verifier,
     webhook_request_notification,
 ):
     verifier.verify.return_value = None
-    eventsub_service._handle_notification = AsyncMock()
+    notification_publisher.publish.side_effect = RedisConnectorError()
 
-    await eventsub_service.handle(webhook_request_notification)
+    with pytest.raises(RedisConnectorError):
+        await eventsub_service.handle(webhook_request_notification)
 
-    eventsub_service._handle_notification.assert_awaited_once()
+    payload = json.loads(webhook_request_notification.request_body)
 
-    event = eventsub_service._handle_notification.await_args.args[0]
+    verifier.verify.assert_called_once_with(
+        webhook_request_notification.message_id,
+        webhook_request_notification.timestamp,
+        webhook_request_notification.request_body,
+        webhook_request_notification.signature,
+    )
 
-    assert isinstance(event, StreamOnlineNotification)
-    assert event.broadcaster_user_id == "1"
-    assert event.broadcaster_user_login == "test"
-    assert event.broadcaster_user_name == "test"
-    assert event.started_at == datetime(2026, 7, 22, 12, 0, 0, tzinfo=timezone.utc)
+    expected = NotificationMessage(
+        platform="twitch",
+        event_type=payload["subscription"]["type"],
+        payload=payload["event"],
+    )
+
+    notification_publisher.publish.assert_awaited_once_with(expected)
 
 
 async def test_handle_revocation(

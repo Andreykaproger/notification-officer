@@ -1,8 +1,9 @@
 import json
-from datetime import datetime
 from logging import getLogger
 
-from app.integrations.twitch.dto import EventSubWebhookRequest, StreamOnlineNotification
+from app.application.publishers.notification_publisher import NotificationPublisher
+from app.integrations.dto import NotificationMessage
+from app.integrations.twitch.dto import EventSubWebhookRequest
 from app.integrations.twitch.enums import EventSubMessageType
 from app.integrations.twitch.verifier import TwitchSignatureVerifier
 
@@ -11,10 +12,10 @@ logger = getLogger(__name__)
 
 class EventSubWebhookService:
     def __init__(
-        self,
-        verifier: TwitchSignatureVerifier,
+        self, verifier: TwitchSignatureVerifier, publisher: NotificationPublisher
     ) -> None:
         self._verifier = verifier
+        self._publisher = publisher
 
     async def handle(
         self,
@@ -36,16 +37,8 @@ class EventSubWebhookService:
 
             case EventSubMessageType.NOTIFICATION:
                 event = payload["event"]
-                await self._handle_notification(
-                    StreamOnlineNotification(
-                        broadcaster_user_id=event["broadcaster_user_id"],
-                        broadcaster_user_login=event["broadcaster_user_login"],
-                        broadcaster_user_name=event["broadcaster_user_name"],
-                        started_at=datetime.fromisoformat(
-                            event["started_at"].replace("Z", "+00:00")
-                        ),
-                    )
-                )
+                event_type = payload["subscription"]["type"]
+                await self._handle_notification(event=event, event_type=event_type)
                 return None
 
             case EventSubMessageType.WEBHOOK_CALLBACK_VERIFICATION:
@@ -56,15 +49,13 @@ class EventSubWebhookService:
     ) -> None:
         logger.info("Twitch EventSub subscription revoked")
 
-    async def _handle_notification(
-        self,
-        event: StreamOnlineNotification,
-    ) -> None:
-        logger.info(
-            "Twitch stream online: broadcaster=%s login=%s",
-            event.broadcaster_user_id,
-            event.broadcaster_user_login,
+    async def _handle_notification(self, event: dict, event_type: str) -> None:
+
+        notification_message = NotificationMessage(
+            platform="twitch", event_type=event_type, payload=event
         )
+
+        await self._publisher.publish(notification_message)
 
     async def _handle_callback_verification(self, challenge: str) -> str:
         logger.info("Twitch EventSub callback verification received")

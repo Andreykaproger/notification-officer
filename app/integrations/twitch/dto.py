@@ -52,11 +52,3 @@ class EventSubWebhookRequest:
 @dataclass(frozen=True, slots=True)
 class StreamOnlineCondition:
     broadcaster_user_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class StreamOnlineNotification:
-    broadcaster_user_id: str
-    broadcaster_user_login: str
-    broadcaster_user_name: str
-    started_at: datetime

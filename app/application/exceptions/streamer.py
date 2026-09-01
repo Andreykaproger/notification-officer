@@ -5,8 +5,6 @@ class StreamerAlreadyExistsError(Exception):
         self.login = login
         super().__init__(f"Streamer with this {login} already exists")
 
-    pass
-
 
 class StreamerNotFoundError(Exception):
     """Raised when a streamer cannot be found."""

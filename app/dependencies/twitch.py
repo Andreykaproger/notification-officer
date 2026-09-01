@@ -3,8 +3,10 @@ from typing import cast
 import httpx
 from fastapi import Depends, Request
 
+from app.application.publishers.notification_publisher import NotificationPublisher
 from app.application.services.eventsub_service import EventSubWebhookService
 from app.core.config import Settings, get_settings
+from app.dependencies.publishers import get_notification_publisher
 from app.integrations.twitch.auth import TwitchAuthClient
 from app.integrations.twitch.eventsub_client import EventSubClient
 from app.integrations.twitch.helix_client import HelixClient
@@ -58,5 +60,6 @@ async def get_twitch_webhook_verifier(
 
 async def get_event_sub_service(
     verifier: TwitchSignatureVerifier = Depends(get_twitch_webhook_verifier),
+    publisher: NotificationPublisher = Depends(get_notification_publisher),
 ) -> EventSubWebhookService:
-    return EventSubWebhookService(verifier)
+    return EventSubWebhookService(verifier, publisher)
